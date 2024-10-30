@@ -6,7 +6,7 @@ import { Link } from "expo-router";
 
 <StyledPressable className="mt-4">
   <Link href="/recoverPassword">
-    <Text className="text-white/70">¿Olvidaste tu contraseña?</Text>
+    <Text className="text-white/70">¿Olvidaste tu aa contraseña?</Text>
   </Link>
 </StyledPressable>
 
