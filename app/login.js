@@ -6,7 +6,7 @@ import { Link } from "expo-router";
 
 <StyledPressable className="mt-4">
   <Link href="/recoverPassword">
-    <Text className="text-white/70">¿Olvidaste tu aa contraseña?</Text>
+    <Text className="text-white/70">¿Olvidaste tu contraseña?</Text>
   </Link>
 </StyledPressable>
 
@@ -33,7 +33,7 @@ export default function Login() {
         <TextInput
           placeholder="Contraseña"
           secureTextEntry
-          className="bg-white/90 w-3/4 p-4 mb-4 rounded"
+          className="bg-white/90 w-3/4 p-4 mb-6 rounded"
         />
         <Link asChild href="/overview">
           <StyledPressable  className="bg-yellow-500 w-3/4 p-4 rounded items-center mb-4 active:bg-yellow-600">
