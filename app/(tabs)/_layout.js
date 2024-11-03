@@ -1,60 +1,73 @@
-import { Tabs } from "expo-router";
-import { View } from "react-native";
+// app/tabs/_layout.js
 
-import { HomeIcon , InfoIcon , LoginIcon } from "../../components/Icons";
+import { Tabs } from "expo-router";
+import { HomeIcon, InfoIcon, LoginIcon } from "../../components/Icons";
+import { MaterialIcons } from '@expo/vector-icons';
 
 export default function TabsLayout() {
-    return(
-        <Tabs
-            screenOptions = {{
-                headerShown: false,
-                tabBarStyle: { backgroundColor: "black" },
-                tabBarActiveTintColor: "yellow",
-
-            }}
-        >
-            <Tabs.Screen 
-                name="index"
-                options={{
-                    title: "Inicio",
-                    tabBarIcon: HomeIcon
-                }}
-            />
-            <Tabs.Screen 
-                name="about"
-                options={{
-                    title: "Acerca",
-                    tabBarIcon: InfoIcon
-                }}
-            />
-            <Tabs.Screen
-                name="overview"
-                options={{
-                    title: "over",
-                    tabBarIcon: LoginIcon
-                }}
-            />
-            <Tabs.Screen
-                name="ReportIncident"
-                options={{
-                    title: "Report",
-                    tabBarIcon: LoginIcon
-                }}
-            />
-            <Tabs.Screen
-                name="Tickets"
-                options={{
-                    title: "Tickets",
-                    tabBarIcon: LoginIcon
-                }}
-            />
-            <Tabs.Screen
-                name="Historialincidente"
-                options={{
-                    title: "Historial",
-                    tabBarIcon: LoginIcon
-                }}
-            />
-        </Tabs>
-    );
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: { backgroundColor: "black" },
+        tabBarActiveTintColor: "yellow",
+        tabBarInactiveTintColor: "white",
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Inicio",
+          tabBarIcon: ({ color, size }) => (
+            <HomeIcon color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="about"
+        options={{
+          title: "Acerca",
+          tabBarIcon: ({ color, size }) => (
+            <InfoIcon color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="overview"
+        options={{
+          title: "Resumen",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="dashboard" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="ReportIncident"
+        options={{
+          title: "Reporte",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="report-problem" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="Tickets"
+        options={{
+          title: "Tickets",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="receipt" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="Historialincidente"
+        options={{
+          title: "Historial",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="history" color={color} size={size} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
 }

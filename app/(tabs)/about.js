@@ -25,7 +25,7 @@ export default function About() {
                     render the same code on the web and on mobile devices.
                 </Text>
 
-                <Link asChild href="/recoverpassword" >
+                <Link asChild href="/overview" >
                     <StyledPressable className={`active:opacity-80`}>
                     <HomeIcon/>
                     </StyledPressable>

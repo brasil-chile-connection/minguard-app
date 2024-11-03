@@ -1,5 +1,13 @@
-import Login from "./login";
+// app/index.js
+
+import React from 'react';
+import { Redirect } from 'expo-router';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function Index() {
-  return <Login />;
+  return (
+    <ErrorBoundary>
+      <Redirect href="/login" />
+    </ErrorBoundary>
+  );
 }
