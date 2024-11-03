@@ -15,15 +15,6 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
-        options={{
-          title: "Inicio",
-          tabBarIcon: ({ color, size }) => (
-            <HomeIcon color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="about"
         options={{
           title: "Acerca",
