@@ -8,7 +8,7 @@ import {
   Pressable,
 } from "react-native";
 import { styled } from "nativewind";
-import { Screen } from "../../components/Screen";
+import { Screen } from "../../../components/Screen";
 import { LineChart } from "react-native-chart-kit";
 import { useRouter } from "expo-router";
 

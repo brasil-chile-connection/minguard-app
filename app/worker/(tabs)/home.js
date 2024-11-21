@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { View, Text } from 'react-native';
-import withAuth from '../../components/withAuth';
+import withAuth from '../../../components/withAuth';
 
 function WorkerHome() {
   return (

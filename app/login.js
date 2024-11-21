@@ -26,31 +26,76 @@ export default function Login() {
     }
 
     try {
-      // Dirección IP de tu máquina; ajusta según sea necesario
-      const API_URL = 'http://192.168.59.148:8089';
+      const API_URL = 'http://192.168.1.132:8089';
 
-      // Realiza la solicitud POST al endpoint de autenticación
+      // Solicitud de login al backend
       const response = await axios.post(`${API_URL}/auth/login`, {
-        email: email,
-        password: password,
+        email,
+        password,
       });
 
-      // Supongamos que el token viene en response.data.token
       const token = response.data.token;
 
-      // Guarda el token de forma segura
+      // Guarda el token en SecureStore
       await SecureStore.setItemAsync('userToken', token);
+      console.log('Token guardado en SecureStore:', token);
 
-      // Navega a /overview
-      router.push('/overview');
-    } catch (error) {
-      console.error('Error al iniciar sesión:', error);
-      // Manejo de errores según la respuesta de la API
-      if (error.response && error.response.status === 401) {
-        Alert.alert("Error", "Correo o contraseña incorrectos.");
+      // Obtener y guardar el rol del usuario
+      const userResponse = await axios.get(`${API_URL}/user/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const userRole = userResponse.data.role.name;
+      await SecureStore.setItemAsync('userRole', userRole);
+      console.log('Rol del usuario guardado:', userRole);
+
+      // Redirigir según el rol
+      if (userRole === "ADMIN") {
+        router.replace('/admin/overview');
+      } else if (userRole === "WORKER") {
+        router.replace('/worker/overview');
       } else {
-        Alert.alert("Error", "Ocurrió un error al iniciar sesión. Por favor, intenta nuevamente.");
+        Alert.alert("Error", "Rol de usuario no reconocido.");
       }
+    } catch (error) {
+      if (error.response && error.response.status === 403) {
+        console.error('Token expirado o no válido. Intenta renovar.');
+        handleTokenRefresh();
+      } else {
+        console.error('Error al iniciar sesión:', error);
+        Alert.alert("Error", "Ocurrió un problema al iniciar sesión.");
+      }
+    }
+  };
+
+  const handleTokenRefresh = async () => {
+    try {
+      const refreshToken = await SecureStore.getItemAsync('refreshToken');
+      if (!refreshToken) {
+        console.error('No se encontró un refresh token.');
+        router.replace('/login');
+        return;
+      }
+
+      const API_URL = 'http://192.168.1.132:8089';
+      const refreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, {
+        refreshToken,
+      });
+
+      const newToken = refreshResponse.data.token;
+      console.log('Nuevo token obtenido:', newToken);
+
+      // Guarda el nuevo token en SecureStore
+      await SecureStore.setItemAsync('userToken', newToken);
+
+      // Reintenta la solicitud que falló
+      router.replace('/overview');
+    } catch (error) {
+      console.error('Error al renovar el token:', error);
+      Alert.alert("Error", "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
+      router.replace('/login');
     }
   };
 

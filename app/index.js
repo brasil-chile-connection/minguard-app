@@ -1,5 +1,3 @@
-// app/index.js
-
 import React from 'react';
 import { Redirect } from 'expo-router';
 import ErrorBoundary from '../components/ErrorBoundary';

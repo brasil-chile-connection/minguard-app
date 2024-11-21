@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Tabs } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import { InfoIcon } from "../../components/Icons";
+import { InfoIcon } from "../../../components/Icons";
 import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 

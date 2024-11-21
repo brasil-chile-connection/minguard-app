@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "practica-react",
-    "slug": "practica-react",
+    "name": "minguard-app",
+    "slug": "minguard-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "scheme": "minguard",
     "splash": {
       "image": "./assets/splash.png",
