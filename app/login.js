@@ -1,20 +1,28 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { styled } from "nativewind";
 import { Screen } from "../components/Screen";
 import { Link, useRouter } from "expo-router";
-import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import axios from "axios";
+import * as SecureStore from "expo-secure-store";
 
 const StyledPressable = styled(Pressable);
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const router = useRouter();
 
   const handleLogin = async () => {
-    if (email === '' || password === '') {
+    if (email === "" || password === "") {
       Alert.alert("Error", "Por favor, completa todos los campos.");
       return;
     }
@@ -26,7 +34,7 @@ export default function Login() {
     }
 
     try {
-      const API_URL = 'http://192.168.1.132:8089';
+      const API_URL = "http://192.168.1.150:8089";
 
       // Solicitud de login al backend
       const response = await axios.post(`${API_URL}/auth/login`, {
@@ -37,10 +45,10 @@ export default function Login() {
       const token = response.data.token;
 
       // Guarda el token en SecureStore
-      await SecureStore.setItemAsync('userToken', token);
-      console.log('Token guardado en SecureStore:', token);
+      await SecureStore.setItemAsync("userToken", token);
+      console.log("Token guardado en SecureStore:", token);
 
-      // Obtener y guardar el rol del usuario
+      // Obtener y guardar el rol y el ID del usuario
       const userResponse = await axios.get(`${API_URL}/user/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -48,23 +56,29 @@ export default function Login() {
       });
 
       const userRole = userResponse.data.role.name;
-      await SecureStore.setItemAsync('userRole', userRole);
-      console.log('Rol del usuario guardado:', userRole);
+      const userId = userResponse.data.id;
 
-      // Redirigir según el rol
+      // Guardar rol y userId en SecureStore
+      await SecureStore.setItemAsync("userRole", userRole);
+      await SecureStore.setItemAsync("userId", userId.toString());
+      console.log("Rol del usuario guardado:", userRole);
+      console.log("ID del usuario guardado:", userId);
+
+      // Redireccionar según el rol
       if (userRole === "ADMIN") {
-        router.replace('/admin/overview');
+        router.replace("/admin/overview");
       } else if (userRole === "WORKER") {
-        router.replace('/worker/overview');
+        router.replace("/worker/overview");
       } else {
         Alert.alert("Error", "Rol de usuario no reconocido.");
+        router.replace("/login");
       }
     } catch (error) {
       if (error.response && error.response.status === 403) {
-        console.error('Token expirado o no válido. Intenta renovar.');
+        console.error("Token expirado o no válido. Intenta renovar.");
         handleTokenRefresh();
       } else {
-        console.error('Error al iniciar sesión:', error);
+        console.error("Error al iniciar sesión:", error);
         Alert.alert("Error", "Ocurrió un problema al iniciar sesión.");
       }
     }
@@ -72,37 +86,37 @@ export default function Login() {
 
   const handleTokenRefresh = async () => {
     try {
-      const refreshToken = await SecureStore.getItemAsync('refreshToken');
+      const refreshToken = await SecureStore.getItemAsync("refreshToken");
       if (!refreshToken) {
-        console.error('No se encontró un refresh token.');
-        router.replace('/login');
+        console.error("No se encontró un refresh token.");
+        router.replace("/login");
         return;
       }
 
-      const API_URL = 'http://192.168.1.132:8089';
+      const API_URL = "http://192.168.1.150:8089";
       const refreshResponse = await axios.post(`${API_URL}/auth/refresh-token`, {
         refreshToken,
       });
 
       const newToken = refreshResponse.data.token;
-      console.log('Nuevo token obtenido:', newToken);
+      console.log("Nuevo token obtenido:", newToken);
 
       // Guarda el nuevo token en SecureStore
-      await SecureStore.setItemAsync('userToken', newToken);
+      await SecureStore.setItemAsync("userToken", newToken);
 
       // Reintenta la solicitud que falló
-      router.replace('/overview');
+      router.replace("/overview");
     } catch (error) {
-      console.error('Error al renovar el token:', error);
+      console.error("Error al renovar el token:", error);
       Alert.alert("Error", "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.");
-      router.replace('/login');
+      router.replace("/login");
     }
   };
 
   return (
     <Screen>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1 justify-center items-center bg-black"
       >
         <Text className="text-white text-2xl mb-8">Iniciar Sesión</Text>

@@ -55,13 +55,6 @@ export default function WorkerLayout() {
         <MaterialIcons name="history" color={color} size={size} />
       ),
     },
-    {
-      name: "about",
-      title: "Acerca",
-      icon: ({ color, size }) => (
-        <MaterialIcons name="info" color={color} size={size} />
-      ),
-    },
   ];
 
   return (
