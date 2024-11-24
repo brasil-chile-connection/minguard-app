@@ -1,149 +1,119 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  ActivityIndicator,
-  Dimensions,
-  Pressable,
-} from "react-native";
-import { styled } from "nativewind";
+import React, { useEffect, useState } from "react";
+import { View, Text, FlatList, Pressable, Alert, ActivityIndicator } from "react-native";
 import { Screen } from "../../../components/Screen";
-import { LineChart } from "react-native-chart-kit";
-import { useRouter } from "expo-router";
+import axios from "axios";
+import * as SecureStore from "expo-secure-store";
 
-export default function Overview() {
-  const [userInfo, setUserInfo] = useState(null);
-  const [stats, setStats] = useState(null);
+export default function OverviewWorker() {
+  const [workerName, setWorkerName] = useState("");
+  const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const router = useRouter();
-  const screenWidth = Dimensions.get("window").width;
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchWorkerData = async () => {
       try {
-        // API para obtener información del usuario
-        const userResponse = await fetch("https://jsonplaceholder.typicode.com/users/3");
-        const userData = await userResponse.json();
-        setUserInfo({
-          nombre: userData.name,
-          lastLogin: new Date().toISOString(), // Simulamos una fecha de último acceso
+        const token = await SecureStore.getItemAsync("userToken");
+        const userId = await SecureStore.getItemAsync("userId");
+
+        if (!userId || !token) {
+          Alert.alert("Error", "No se pudo obtener los datos del usuario.");
+          return;
+        }
+
+        const API_URL = "http://192.168.1.150:8089";
+
+        // Obtener información del trabajador
+        const userResponse = await axios.get(`${API_URL}/user/${userId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
 
-        // API para obtener datos estadísticos (usamos dummyjson como ejemplo)
-        const statsResponse = await fetch("https://dummyjson.com/products");
-        const statsData = await statsResponse.json();
+        const { firstName, lastName } = userResponse.data;
+        setWorkerName(`${firstName} ${lastName}`);
 
-        // Transformamos los datos de productos para crear datos de ejemplo para el gráfico
-        const labels = statsData.products.slice(0, 1).map(product => product.title); // Nombres de productos
-        const values = statsData.products.slice(0, 5).map(product => product.price); // Precios de productos
+        // Obtener los incidentes reportados por el trabajador
+        const incidentResponse = await axios.get(`${API_URL}/incident/reporter/${userId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-        setStats({ labels, values });
-        setLoading(false);
-      } catch (err) {
-        setError(err);
+        setIncidents(incidentResponse.data || []);
+      } catch (error) {
+        console.error("Error al obtener los datos del trabajador:", error);
+        Alert.alert("Error", "No se pudo cargar la información.");
+      } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchWorkerData();
   }, []);
 
   if (loading) {
     return (
       <Screen>
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text>Cargando información...</Text>
-        </View>
+        <ActivityIndicator size="large" color="yellow" />
+        <Text className="text-yellow-500 text-center mt-4">Cargando datos...</Text>
       </Screen>
     );
   }
-
-  if (error) {
-    return (
-      <Screen>
-        <View className="flex-1 justify-center items-center">
-          <Text>Error al cargar los datos.</Text>
-        </View>
-      </Screen>
-    );
-  }
-
-  // Configuración de datos para el gráfico de líneas
-  const chartData = {
-    labels: stats.labels, // Etiquetas para el gráfico (títulos de productos)
-    datasets: [
-      {
-        data: stats.values, // Valores para el gráfico (precios de productos)
-      },
-    ],
-  };
 
   return (
     <Screen>
-      <ScrollView className="flex-1 p-4 bg-gray-100">
-        <Text
-          className="text-2xl font-bold mb-4"
-          accessible={true}
-          accessibilityRole="header"
-        >
-          Resumen General
-        </Text>
-
-        {/* Sección de Información */}
-        <View className="bg-white p-4 rounded-lg shadow mb-4">
-          <Text className="text-lg font-semibold">
-            Bienvenido, {userInfo.nombre}
-          </Text>
-          <Text className="text-gray-700 mt-2">
-            Último acceso:{" "}
-            {new Date(userInfo.lastLogin).toLocaleString("es-ES")}
-          </Text>
+      <View className="flex-1">
+        {/* Cabecera del Trabajador */}
+        <View className="bg-yellow-500 p-4 rounded mb-6">
+          <Text className="text-black text-2xl font-bold">Hola, {workerName}</Text>
+          <Text className="text-black">¡Bienvenido a tu panel de trabajo!</Text>
         </View>
 
-        {/* Sección de Estadísticas */}
-        <View className="bg-white p-4 rounded-lg shadow mb-4">
-          <Text className="text-lg font-semibold">Estadísticas</Text>
-          <LineChart
-            data={chartData}
-            width={screenWidth - 32} // Ancho del gráfico
-            height={220}
-            chartConfig={{
-              backgroundColor: "#ffffff",
-              backgroundGradientFrom: "#ffffff",
-              backgroundGradientTo: "#ffffff",
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              style: {
-                borderRadius: 16,
-              },
-              propsForDots: {
-                r: "6",
-                strokeWidth: "2",
-                stroke: "#ffa726",
-              },
-            }}
-            style={{
-              marginVertical: 8,
-              borderRadius: 16,
-            }}
-          />
-        </View>
+        {/* Título de la sección */}
+        <Text className="text-white text-xl mb-4">Tus Incidentes Reportados:</Text>
 
-        {/* Botón para ver más detalles */}
+        {/* Lista de Incidentes */}
+        <FlatList
+          data={incidents}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View className="bg-gray-800 p-4 mb-4 rounded">
+              <Text className="text-yellow-500 font-bold text-lg">{item.title}</Text>
+              <Text className="text-gray-300">Descripción: {item.description}</Text>
+              <Text className="text-yellow-400">
+                Fecha: {new Date(item.createdAt).toLocaleString()}
+              </Text>
+              <Text className="text-gray-400">Ubicación: {item.location}</Text>
+              <Pressable
+                onPress={() => Alert.alert("Detalles", `Incidente: ${item.title}`)}
+                className="mt-4 bg-yellow-500 p-2 rounded"
+              >
+                <Text className="text-black text-center">Ver Más Detalles</Text>
+              </Pressable>
+            </View>
+          )}
+        />
+
+        {/* Si no hay incidentes */}
+        {incidents.length === 0 && (
+          <Text className="text-white text-center mt-4">
+            No has reportado ningún incidente aún.
+          </Text>
+        )}
+
+        {/* Botón de Ayuda */}
         <Pressable
-          onPress={() => router.push("/details")}
-          className="bg-blue-500 p-4 rounded items-center mt-4"
-          accessible={true}
-          accessibilityLabel="Ver detalles"
+          onPress={() => {
+            Alert.alert(
+              "Ayuda",
+              "En este panel puedes ver todos los incidentes que has reportado y gestionar tus actividades."
+            );
+          }}
+          className="mt-6 bg-yellow-500 p-4 rounded items-center"
         >
-          <Text className="text-white font-bold">Ver Detalles</Text>
+          <Text className="text-black font-bold">Ayuda</Text>
         </Pressable>
-      </ScrollView>
+      </View>
     </Screen>
   );
 }
