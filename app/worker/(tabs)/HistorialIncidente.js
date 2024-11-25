@@ -3,11 +3,11 @@ import {
   View,
   Text,
   FlatList,
-  Image,
   Pressable,
-  Modal,
   ActivityIndicator,
   Alert,
+  StyleSheet,
+  Image,
 } from "react-native";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
@@ -16,163 +16,167 @@ import { Screen } from "../../../components/Screen";
 export default function HistorialIncidente() {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedIncident, setSelectedIncident] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
+
+  const API_URL = "http://192.168.1.150:8089";
 
   useEffect(() => {
-    const fetchIncidents = async () => {
-      try {
-        // Obtener el token y el ID del usuario
-        const token = await SecureStore.getItemAsync("userToken");
-        const userId = await SecureStore.getItemAsync("userId");
-
-        if (!userId) {
-          Alert.alert("Error", "No se encontró el ID del usuario.");
-          return;
-        }
-
-        const API_URL = "http://192.168.1.150:8089";
-
-        // Llamar a la API para obtener los incidentes del usuario
-        const response = await axios.get(`${API_URL}/incident/reporter/${userId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        setIncidents(response.data); // Suponiendo que la API devuelve un array
-      } catch (error) {
-        console.error("Error al obtener los incidentes:", error);
-        Alert.alert("Error", "No se pudieron obtener los incidentes.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchIncidents();
   }, []);
 
-  const handleIncidentPress = (incident) => {
-    setSelectedIncident(incident);
-    setModalVisible(true);
+  const fetchIncidents = async () => {
+    setLoading(true);
+    try {
+      const token = await SecureStore.getItemAsync("userToken");
+      const userId = await SecureStore.getItemAsync("userId");
+
+      if (!userId) {
+        Alert.alert("Error", "No se encontró el ID del usuario.");
+        return;
+      }
+
+      const response = await axios.get(`${API_URL}/incident/reporter/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setIncidents(response.data);
+    } catch (error) {
+      console.error("Error al obtener los incidentes:", error);
+      Alert.alert("Error", "No se pudieron obtener los incidentes.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = () => {
+    fetchIncidents();
   };
 
   if (loading) {
     return (
       <Screen>
-        <ActivityIndicator size="large" color="yellow" />
-      </Screen>
-    );
-  }
-
-  if (incidents.length === 0) {
-    return (
-      <Screen>
-        <Text className="text-white text-center mt-4">
-          No se encontraron incidentes reportados.
-        </Text>
+        <ActivityIndicator size="large" color="#FFD700" />
       </Screen>
     );
   }
 
   return (
     <Screen>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Historial de Incidentes</Text>
+        <Pressable onPress={onRefresh} style={styles.refreshButton}>
+          <Text style={styles.refreshButtonText}>Actualizar</Text>
+        </Pressable>
+      </View>
       <FlatList
         data={incidents}
         keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handleIncidentPress(item)}
-            style={{
-              backgroundColor: "#444",
-              padding: 15,
-              marginBottom: 10,
-              borderRadius: 10,
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-              {item.title}
-            </Text>
-            <Text style={{ color: "#ccc", marginVertical: 5 }}>
-              {item.description}
-            </Text>
-            <Text style={{ color: "yellow" }}>
-              Fecha: {new Date(item.createdAt).toLocaleString()}
-            </Text>
-          </Pressable>
+          <View style={styles.card}>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={styles.cardDescription}>{item.description}</Text>
+
+              {/* Mostrar imágenes del incidente */}
+              {item.images && item.images.length > 0 && (
+                <FlatList
+                  data={item.images}
+                  keyExtractor={(imageUri, index) => index.toString()}
+                  horizontal
+                  renderItem={({ item: imageUri }) => (
+                    <Image source={{ uri: imageUri }} style={styles.image} />
+                  )}
+                  style={{ marginBottom: 12 }}
+                />
+              )}
+
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardLabel}>Ubicación:</Text>
+                <Text style={styles.cardText}>{item.location}</Text>
+              </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardLabel}>Urgencia:</Text>
+                <Text style={styles.cardText}>
+                  {item.urgencyId || "No especificada"}
+                </Text>
+              </View>
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardLabel}>Fecha:</Text>
+                <Text style={styles.cardText}>
+                  {new Date(item.createdAt).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          </View>
         )}
       />
-
-      {/* Modal para mostrar detalles del incidente */}
-      <Modal visible={modalVisible} transparent={true}>
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.9)",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          {selectedIncident && (
-            <View style={{ backgroundColor: "#222", padding: 20, borderRadius: 10 }}>
-              <Text
-                style={{
-                  color: "#fff",
-                  fontSize: 24,
-                  fontWeight: "bold",
-                  marginBottom: 10,
-                }}
-              >
-                {selectedIncident.title}
-              </Text>
-              <Text style={{ color: "#ccc", marginBottom: 10 }}>
-                {selectedIncident.description}
-              </Text>
-              <Text style={{ color: "yellow", marginBottom: 10 }}>
-                Fecha: {new Date(selectedIncident.createdAt).toLocaleString()}
-              </Text>
-              <Text style={{ color: "#fff", marginBottom: 10 }}>
-                Ubicación: {selectedIncident.location || "No especificada"}
-              </Text>
-              <Text style={{ color: "#fff", marginBottom: 10 }}>
-                Urgencia: {selectedIncident.urgencyId || "No especificada"}
-              </Text>
-              {selectedIncident.images && selectedIncident.images.length > 0 ? (
-                <View style={{ marginVertical: 10 }}>
-                  <Text style={{ color: "#fff", marginBottom: 10 }}>Imágenes:</Text>
-                  {selectedIncident.images.map((image, index) => (
-                    <Image
-                      key={index}
-                      source={{ uri: image }}
-                      style={{
-                        width: "100%",
-                        height: 200,
-                        borderRadius: 10,
-                        marginBottom: 10,
-                      }}
-                      resizeMode="contain"
-                    />
-                  ))}
-                </View>
-              ) : (
-                <Text style={{ color: "#ccc" }}>Sin imágenes adjuntas</Text>
-              )}
-              <Pressable
-                onPress={() => setModalVisible(false)}
-                style={{
-                  marginTop: 10,
-                  backgroundColor: "yellow",
-                  padding: 10,
-                  borderRadius: 5,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#000", fontWeight: "bold" }}>Cerrar</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      </Modal>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "#000",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerTitle: {
+    color: "#FFD700",
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  refreshButton: {
+    backgroundColor: "#FFD700",
+    padding: 10,
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    color: "#000",
+    fontWeight: "bold",
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  card: {
+    backgroundColor: "#333", // Fondo negro
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: "hidden",
+    elevation: 3,
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardTitle: {
+    color: "#FFD700", // Texto amarillo
+    fontWeight: "bold",
+    fontSize: 20,
+    marginBottom: 8,
+  },
+  cardDescription: {
+    color: "#fff", // Texto blanco
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  cardInfo: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+  cardLabel: {
+    color: "#FFD700", // Etiquetas en amarillo
+    fontWeight: "bold",
+    marginRight: 4,
+  },
+  cardText: {
+    color: "#fff", // Texto blanco
+  },
+  image: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+});

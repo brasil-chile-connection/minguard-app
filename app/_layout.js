@@ -31,7 +31,7 @@ export default function Layout() {
         // Botón derecho del encabezado
         headerRight: () => (
           <Pressable
-            onPress={() => router.push("/about")}
+            onPress={() => router.push("/")}
             accessible={true}
             accessibilityLabel="Acerca de"
           >

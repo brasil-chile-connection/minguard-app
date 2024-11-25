@@ -55,6 +55,13 @@ export default function AdminLayout() {
         <MaterialIcons name="info" color={color} size={size} />
       ),
     },
+    {
+      name: "HistorialIncidente",
+      title: "Historial",
+      icon: ({ color, size }) => (
+        <MaterialIcons name="history" color={color} size={size} />
+      ),
+    },
   ];
 
   return (

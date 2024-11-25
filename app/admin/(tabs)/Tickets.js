@@ -37,7 +37,7 @@ export default function Tickets() {
 
       try {
         // Asumiendo que los tickets se obtienen según el rol del usuario
-        const endpoint = role === "ADMIN" ? "/tickets/admin" : "/tickets/worker";
+        const endpoint = role === "ADMIN" ? "/ticket/admin" : "/ticket/worker";
         const response = await api.get(endpoint);
         setTickets(response.data);
         setFilteredTickets(response.data);

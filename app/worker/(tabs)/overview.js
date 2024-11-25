@@ -1,119 +1,163 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, Pressable, Alert, ActivityIndicator } from "react-native";
-import { Screen } from "../../../components/Screen";
+import {
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+} from "react-native";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
+import { format } from "date-fns";
 
-export default function OverviewWorker() {
-  const [workerName, setWorkerName] = useState("");
+export default function Overview() {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [workerName, setWorkerName] = useState("");
 
   useEffect(() => {
-    const fetchWorkerData = async () => {
+    const fetchIncidents = async () => {
       try {
         const token = await SecureStore.getItemAsync("userToken");
-        const userId = await SecureStore.getItemAsync("userId");
 
-        if (!userId || !token) {
-          Alert.alert("Error", "No se pudo obtener los datos del usuario.");
+        if (!token) {
+          Alert.alert("Error", "No se encontró el token de usuario.");
+          return;
+        }
+
+        const userId = await SecureStore.getItemAsync("userId");
+        if (!userId) {
+          Alert.alert("Error", "No se encontró el ID del usuario.");
           return;
         }
 
         const API_URL = "http://192.168.1.150:8089";
 
         // Obtener información del trabajador
-        const userResponse = await axios.get(`${API_URL}/user/${userId}`, {
+        const userResponse = await axios.get(`${API_URL}/user/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        setWorkerName(userResponse.data.firstName + " " + userResponse.data.lastName);
+
+        // Obtener los incidentes del trabajador del día actual
+        const today = format(new Date(), "yyyy-MM-dd");
+        const response = await axios.get(`${API_URL}/incident/reporter/${userId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
-        const { firstName, lastName } = userResponse.data;
-        setWorkerName(`${firstName} ${lastName}`);
-
-        // Obtener los incidentes reportados por el trabajador
-        const incidentResponse = await axios.get(`${API_URL}/incident/reporter/${userId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const todaysIncidents = response.data.filter((incident) => {
+          const incidentDate = format(new Date(incident.createdAt), "yyyy-MM-dd");
+          return incidentDate === today;
         });
 
-        setIncidents(incidentResponse.data || []);
+        setIncidents(todaysIncidents);
       } catch (error) {
-        console.error("Error al obtener los datos del trabajador:", error);
-        Alert.alert("Error", "No se pudo cargar la información.");
+        console.error("Error al obtener los incidentes:", error);
+        Alert.alert("Error", "No se pudieron obtener los incidentes.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchWorkerData();
+    fetchIncidents();
   }, []);
 
   if (loading) {
     return (
-      <Screen>
+      <View style={styles.centeredContainer}>
         <ActivityIndicator size="large" color="yellow" />
-        <Text className="text-yellow-500 text-center mt-4">Cargando datos...</Text>
-      </Screen>
+      </View>
+    );
+  }
+
+  if (incidents.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Bienvenido, {workerName}</Text>
+        <Text style={styles.noIncidentsText}>
+          No se encontraron incidentes reportados hoy.
+        </Text>
+      </View>
     );
   }
 
   return (
-    <Screen>
-      <View className="flex-1">
-        {/* Cabecera del Trabajador */}
-        <View className="bg-yellow-500 p-4 rounded mb-6">
-          <Text className="text-black text-2xl font-bold">Hola, {workerName}</Text>
-          <Text className="text-black">¡Bienvenido a tu panel de trabajo!</Text>
-        </View>
-
-        {/* Título de la sección */}
-        <Text className="text-white text-xl mb-4">Tus Incidentes Reportados:</Text>
-
-        {/* Lista de Incidentes */}
-        <FlatList
-          data={incidents}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View className="bg-gray-800 p-4 mb-4 rounded">
-              <Text className="text-yellow-500 font-bold text-lg">{item.title}</Text>
-              <Text className="text-gray-300">Descripción: {item.description}</Text>
-              <Text className="text-yellow-400">
-                Fecha: {new Date(item.createdAt).toLocaleString()}
-              </Text>
-              <Text className="text-gray-400">Ubicación: {item.location}</Text>
-              <Pressable
-                onPress={() => Alert.alert("Detalles", `Incidente: ${item.title}`)}
-                className="mt-4 bg-yellow-500 p-2 rounded"
-              >
-                <Text className="text-black text-center">Ver Más Detalles</Text>
-              </Pressable>
-            </View>
-          )}
-        />
-
-        {/* Si no hay incidentes */}
-        {incidents.length === 0 && (
-          <Text className="text-white text-center mt-4">
-            No has reportado ningún incidente aún.
-          </Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Bienvenido, {workerName}</Text>
+      <Text style={styles.subtitle}>Incidentes reportados hoy:</Text>
+      <FlatList
+        data={incidents}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{item.title}</Text>
+            <Text style={styles.cardDescription}>{item.description}</Text>
+            <Text style={styles.cardDetail}>Ubicación: {item.location}</Text>
+            <Text style={styles.cardDetail}>
+              Fecha: {new Date(item.createdAt).toLocaleTimeString()}
+            </Text>
+          </View>
         )}
-
-        {/* Botón de Ayuda */}
-        <Pressable
-          onPress={() => {
-            Alert.alert(
-              "Ayuda",
-              "En este panel puedes ver todos los incidentes que has reportado y gestionar tus actividades."
-            );
-          }}
-          className="mt-6 bg-yellow-500 p-4 rounded items-center"
-        >
-          <Text className="text-black font-bold">Ayuda</Text>
-        </Pressable>
-      </View>
-    </Screen>
+      />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: "#000",
+  },
+  centeredContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  title: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  subtitle: {
+    color: "#fff",
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  noIncidentsText: {
+    color: "#ccc",
+    fontSize: 18,
+    textAlign: "center",
+  },
+  card: {
+    backgroundColor: "#333",
+    padding: 15,
+    marginBottom: 10,
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  cardTitle: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 18,
+    marginBottom: 5,
+  },
+  cardDescription: {
+    color: "#ccc",
+    marginBottom: 5,
+  },
+  cardDetail: {
+    color: "yellow",
+  },
+});
