@@ -7,6 +7,7 @@ import {
   Alert,
   StyleSheet,
   Dimensions,
+  Pressable,
 } from "react-native";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
@@ -18,75 +19,89 @@ export default function OverviewAdmin() {
   const [incidentsWeek, setIncidentsWeek] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState("");
+  const [refreshing, setRefreshing] = useState(false); // Estado para controlar el refresco
+
+  const fetchIncidents = async () => {
+    try {
+      const token = await SecureStore.getItemAsync("userToken");
+
+      if (!token) {
+        Alert.alert("Error", "No se encontró el token de usuario.");
+        return;
+      }
+
+      const API_URL = "http://192.168.1.150:8089";
+
+      // Obtener información del administrador
+      const userResponse = await axios.get(`${API_URL}/user/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setAdminName(
+        userResponse.data.firstName + " " + userResponse.data.lastName
+      );
+
+      // Obtener todos los incidentes
+      const response = await axios.get(`${API_URL}/incident`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const incidents = response.data;
+
+      // Filtrar incidentes de hoy
+      const today = format(new Date(), "yyyy-MM-dd");
+      const todaysIncidents = incidents.filter((incident) => {
+        const incidentDate = format(new Date(incident.createdAt), "yyyy-MM-dd");
+        return incidentDate === today;
+      });
+      setIncidentsToday(todaysIncidents);
+
+      // Obtener incidentes de los últimos 7 días
+      const last7DaysIncidents = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = format(subDays(new Date(), i), "yyyy-MM-dd");
+        const incidentsOfDay = incidents.filter((incident) => {
+          const incidentDate = format(
+            new Date(incident.createdAt),
+            "yyyy-MM-dd"
+          );
+          return incidentDate === date;
+        });
+        last7DaysIncidents.push({
+          date,
+          count: incidentsOfDay.length,
+        });
+      }
+      setIncidentsWeek(last7DaysIncidents);
+    } catch (error) {
+      console.error("Error al obtener los incidentes:", error);
+      Alert.alert("Error", "No se pudieron obtener los incidentes.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false); // Asegurarse de que 'refreshing' sea falso
+    }
+  };
 
   useEffect(() => {
-    const fetchIncidents = async () => {
-      try {
-        const token = await SecureStore.getItemAsync("userToken");
-
-        if (!token) {
-          Alert.alert("Error", "No se encontró el token de usuario.");
-          return;
-        }
-
-        const API_URL = "http://192.168.1.150:8089";
-
-        // Obtener información del administrador
-        const userResponse = await axios.get(`${API_URL}/user/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        setAdminName(
-          userResponse.data.firstName + " " + userResponse.data.lastName
-        );
-
-        // Obtener todos los incidentes
-        const response = await axios.get(`${API_URL}/incident`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const incidents = response.data;
-
-        // Filtrar incidentes de hoy
-        const today = format(new Date(), "yyyy-MM-dd");
-        const todaysIncidents = incidents.filter((incident) => {
-          const incidentDate = format(new Date(incident.createdAt), "yyyy-MM-dd");
-          return incidentDate === today;
-        });
-        setIncidentsToday(todaysIncidents);
-
-        // Obtener incidentes de los últimos 7 días
-        const last7DaysIncidents = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = format(subDays(new Date(), i), "yyyy-MM-dd");
-          const incidentsOfDay = incidents.filter((incident) => {
-            const incidentDate = format(
-              new Date(incident.createdAt),
-              "yyyy-MM-dd"
-            );
-            return incidentDate === date;
-          });
-          last7DaysIncidents.push({
-            date,
-            count: incidentsOfDay.length,
-          });
-        }
-        setIncidentsWeek(last7DaysIncidents);
-      } catch (error) {
-        console.error("Error al obtener los incidentes:", error);
-        Alert.alert("Error", "No se pudieron obtener los incidentes.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchIncidents();
+
+    // Configurar el polling para actualizar los incidentes cada 10 segundos
+    const intervalId = setInterval(fetchIncidents, 10000);
+
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => clearInterval(intervalId);
   }, []);
 
-  if (loading) {
+  const onRefresh = () => {
+    setRefreshing(true);
+    setLoading(true); // Mostrar el indicador de carga si es necesario
+    fetchIncidents();
+  };
+
+  if (loading && !refreshing) {
     return (
       <View style={styles.centeredContainer}>
         <ActivityIndicator size="large" color="yellow" />
@@ -96,7 +111,18 @@ export default function OverviewAdmin() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Bienvenido, {adminName}</Text>
+      {/* Encabezado con el botón de Actualizar */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Bienvenido, {adminName}</Text>
+        <Pressable onPress={onRefresh} style={styles.refreshButton}>
+          {refreshing ? (
+            <ActivityIndicator color="#000" />
+          ) : (
+            <Text style={styles.refreshButtonText}>Actualizar</Text>
+          )}
+        </Pressable>
+      </View>
+
       <Text style={styles.subtitle}>Incidentes reportados hoy:</Text>
 
       {incidentsToday.length === 0 ? (
@@ -117,6 +143,8 @@ export default function OverviewAdmin() {
               </Text>
             </View>
           )}
+          style={{ marginBottom: 20 }}
+          scrollEnabled={false}
         />
       )}
 
@@ -179,11 +207,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#000",
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
   title: {
     color: "#fff",
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 10,
+  },
+  refreshButton: {
+    backgroundColor: "#FFD700",
+    padding: 10,
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    color: "#000",
+    fontWeight: "bold",
   },
   subtitle: {
     color: "#fff",

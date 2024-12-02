@@ -60,6 +60,18 @@ export default function HistorialIncidenteAdmin() {
     }
   };
 
+  useEffect(() => {
+    fetchIncidents();
+
+    // Configurar el polling para actualizar los incidentes cada 10 segundos
+    const intervalId = setInterval(fetchIncidents, 10000);
+
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => clearInterval(intervalId);
+  }, []);
+
+
+
   const onRefresh = () => {
     fetchIncidents();
   };

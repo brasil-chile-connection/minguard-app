@@ -1,64 +1,66 @@
-// app/(tabs)/Tickets.js
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, ActivityIndicator, TextInput, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  TextInput,
+  Pressable,
+  Alert,
+  StyleSheet,
+} from "react-native";
 import { Screen } from "../../../components/Screen";
 import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
-import api from "../../../components/api";
+import axios from "axios";
 
 export default function Tickets() {
-  const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [filteredTickets, setFilteredTickets] = useState([]);
   const [searchText, setSearchText] = useState("");
-  const [error, setError] = useState(null);
+  const [role, setRole] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
-    const getUserRole = async () => {
-      try {
-        const userRole = await SecureStore.getItemAsync("userRole");
-        if (userRole) {
-          setRole(userRole);
-        } else {
-          setRole("guest");
-          router.replace("/login"); // Redirigir si no hay rol
-        }
-      } catch (error) {
-        console.error("Error al obtener el rol del usuario:", error);
-        setRole("guest");
-        router.replace("/login");
-      }
-    };
-
     const fetchTickets = async () => {
-      if (role === "guest") return;
-
       try {
-        // Asumiendo que los tickets se obtienen según el rol del usuario
-        const endpoint = role === "ADMIN" ? "/ticket/admin" : "/ticket/worker";
-        const response = await api.get(endpoint);
+        const token = await SecureStore.getItemAsync("userToken");
+
+        if (!token) {
+          Alert.alert("Error", "No se encontró el token de usuario.");
+          router.replace("/login");
+          return;
+        }
+
+        const API_URL = "http://192.168.1.150:8089";
+
+        // Determinar rol del usuario
+        const userRole = await SecureStore.getItemAsync("userRole");
+        setRole(userRole);
+
+        // Obtener tickets según el rol
+        const endpoint =
+          userRole === "ADMIN" ? `${API_URL}/ticket` : `${API_URL}/ticket/worker`;
+        const response = await axios.get(endpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
         setTickets(response.data);
         setFilteredTickets(response.data);
       } catch (error) {
         console.error("Error al obtener los tickets:", error);
-        setError(error);
+        Alert.alert("Error", "No se pudieron cargar los tickets.");
       } finally {
         setLoading(false);
       }
     };
 
-    // Cargar el rol y luego los tickets
-    const initialize = async () => {
-      await getUserRole();
-      await fetchTickets();
-    };
-
-    initialize();
-  }, [role]);
+    fetchTickets();
+  }, []);
 
   useEffect(() => {
+    // Filtrar los tickets según el texto de búsqueda
     const filtered = tickets.filter((ticket) =>
       ticket.title.toLowerCase().includes(searchText.toLowerCase()) ||
       ticket.description.toLowerCase().includes(searchText.toLowerCase())
@@ -66,22 +68,12 @@ export default function Tickets() {
     setFilteredTickets(filtered);
   }, [searchText, tickets]);
 
-  if (loading || role === null) {
+  if (loading) {
     return (
       <Screen>
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text>Cargando tickets...</Text>
-        </View>
-      </Screen>
-    );
-  }
-
-  if (error) {
-    return (
-      <Screen>
-        <View className="flex-1 justify-center items-center">
-          <Text>Error al cargar los tickets. Intenta nuevamente.</Text>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#FFD700" />
+          <Text style={styles.loadingText}>Cargando tickets...</Text>
         </View>
       </Screen>
     );
@@ -89,21 +81,24 @@ export default function Tickets() {
 
   const TicketRow = ({ ticket, index }) => (
     <Pressable
-      onPress={() => router.push(`/tickets/${ticket.id}`)}
-      className={`flex-row p-2 border-b border-gray-300 ${index % 2 === 0 ? "bg-gray-100" : "bg-white"}`}
+      onPress={() => router.push(`/ticket/${ticket.id}`)}
+      style={[
+        styles.ticketRow,
+        index % 2 === 0 ? styles.ticketRowEven : styles.ticketRowOdd,
+      ]}
       accessible={true}
       accessibilityLabel={`Ver detalles del ticket ${ticket.id}`}
     >
-      <Text className="flex-1 text-center">{ticket.id}</Text>
-      <Text className="flex-1 text-center">{ticket.title}</Text>
-      <Text className="flex-1 text-center">{ticket.status}</Text>
+      <Text style={styles.ticketText}>{ticket.id}</Text>
+      <Text style={styles.ticketText}>{ticket.title}</Text>
+      <Text style={styles.ticketText}>{ticket.status}</Text>
     </Pressable>
   );
 
   return (
     <Screen>
-      <View className="flex-1 p-4 bg-white">
-        <Text className="text-xl font-bold text-center mb-4">
+      <View style={styles.container}>
+        <Text style={styles.title}>
           {role === "ADMIN" ? "Gestión de Tickets" : "Mis Tickets"}
         </Text>
 
@@ -111,29 +106,90 @@ export default function Tickets() {
           placeholder="Buscar por título o descripción..."
           value={searchText}
           onChangeText={setSearchText}
-          className="bg-gray-200 p-2 mb-4 rounded"
+          style={styles.searchInput}
           accessible={true}
           accessibilityLabel="Campo de búsqueda"
         />
 
-        <View className="flex-row bg-gray-200 p-2 rounded-t-lg border-b border-gray-300">
-          <Text className="flex-1 text-center font-semibold">ID</Text>
-          <Text className="flex-1 text-center font-semibold">Título</Text>
-          <Text className="flex-1 text-center font-semibold">Estado</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerText}>ID</Text>
+          <Text style={styles.headerText}>Título</Text>
+          <Text style={styles.headerText}>Estado</Text>
         </View>
 
         <FlatList
           data={filteredTickets}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item, index }) => <TicketRow ticket={item} index={index} />}
-          contentContainerStyle={{
-            borderWidth: 1,
-            borderColor: "#D1D5DB",
-            borderBottomLeftRadius: 8,
-            borderBottomRightRadius: 8,
-          }}
+          contentContainerStyle={styles.flatListContent}
         />
       </View>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: "#000",
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  loadingText: {
+    color: "#FFD700",
+    fontSize: 16,
+    marginTop: 10,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  searchInput: {
+    backgroundColor: "#333",
+    color: "#FFF",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  headerRow: {
+    flexDirection: "row",
+    backgroundColor: "#444",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  headerText: {
+    flex: 1,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textAlign: "center",
+  },
+  ticketRow: {
+    flexDirection: "row",
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#555",
+  },
+  ticketRowEven: {
+    backgroundColor: "#222",
+  },
+  ticketRowOdd: {
+    backgroundColor: "#333",
+  },
+  ticketText: {
+    flex: 1,
+    color: "#FFF",
+    textAlign: "center",
+  },
+  flatListContent: {
+    borderRadius: 8,
+  },
+});
