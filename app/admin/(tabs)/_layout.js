@@ -50,7 +50,7 @@ export default function AdminLayout() {
   const fetchNewIncidents = async () => {
     try {
       const token = await SecureStore.getItemAsync("userToken");
-      const response = await fetch(`${API_URL}/incident/new`, {
+      const response = await fetch(`${API_URL}/incident`, {
         method: "GET",
         headers: { Authorization: `Bearer ${token}` },
       });
