@@ -13,7 +13,7 @@ export default function AdminLayout() {
   const [newIncidents, setNewIncidents] = useState(0); // Para notificaciones de nuevos incidentes
   const router = useRouter();
 
-  const API_URL = "http://192.168.1.150:8089";
+  const API_URL = "http://192.168.1.144:8089";
 
   useEffect(() => {
     const fetchUserRole = async () => {

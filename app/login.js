@@ -37,7 +37,7 @@ export default function Login() {
     }
 
     try {
-      const API_URL = "http://192.168.1.150:8089";
+      const API_URL = "http://192.168.1.144:8089";
 
       const response = await axios.post(`${API_URL}/auth/login`, {
         email,

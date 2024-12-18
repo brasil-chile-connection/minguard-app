@@ -33,7 +33,7 @@ export default function Overview() {
         return;
       }
 
-      const API_URL = "http://192.168.1.150:8089";
+      const API_URL = "http://192.168.1.144:8089";
 
       // Obtener información del trabajador
       const userResponse = await axios.get(`${API_URL}/user/me`, {

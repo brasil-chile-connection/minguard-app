@@ -2,119 +2,109 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   Modal,
   Alert,
-  Keyboard,
-  TouchableWithoutFeedback,
-  KeyboardAvoidingView,
   ScrollView,
-  Platform,
   StyleSheet,
+  TextInput,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import * as SecureStore from "expo-secure-store";
-import axios from "axios";
+import * as FileSystem from "expo-file-system";
+import uuid from "react-native-uuid";
 import { Screen } from "../../../components/Screen";
 
 export default function Tickets() {
+  const API_URL = "http://192.168.1.144:8089";
   const [modalVisible, setModalVisible] = useState(false);
-  const [newTicket, setNewTicket] = useState({
-    title: "",
-    description: "",
-    location: "",
-    urgencyId: "",
-    incidentId: "",
-    responsibleId: "",
-    statusId: "",
-  });
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [incidents, setIncidents] = useState([]);
+  const [selectedIncident, setSelectedIncident] = useState("");
   const [statuses, setStatuses] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [selectedTicket, setSelectedTicket] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [ticketDetails, setTicketDetails] = useState(null);
-  const [showTicketModal, setShowTicketModal] = useState(false);
 
-  const API_URL = "http://192.168.1.150:8089";
+  const fetchAllData = async () => {
+    try {
+      const token = await SecureStore.getItemAsync("userToken");
+
+      const [incidentRes, statusRes, ticketsRes] = await Promise.all([
+        fetch(`${API_URL}/incident`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/status`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/ticket`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+
+      setIncidents(await incidentRes.json());
+      setStatuses(await statusRes.json());
+      setTickets(await ticketsRes.json());
+    } catch (error) {
+      console.error("Error al obtener datos:", error);
+      Alert.alert("Error", "No se pudieron cargar los datos.");
+    }
+  };
 
   useEffect(() => {
-    const fetchStatuses = async () => {
-      try {
-        const token = await SecureStore.getItemAsync("userToken");
-        const response = await axios.get(`${API_URL}/status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setStatuses(response.data);
-
-        // Asignar el primer estado como predeterminado al cargar los estados
-        if (response.data.length > 0) {
-          setNewTicket((prevTicket) => ({
-            ...prevTicket,
-            statusId: response.data[0].id,
-          }));
-        }
-      } catch (error) {
-        console.error("Error al obtener los estados:", error);
-      }
-    };
-
-    fetchStatuses();
+    fetchAllData();
   }, []);
 
   const handleCreateTicket = async () => {
-    const {
-      title,
-      description,
-      location,
-      urgencyId,
-      incidentId,
-      responsibleId,
-      statusId,
-    } = newTicket;
-
-    if (
-      !title ||
-      !description ||
-      !location ||
-      !urgencyId ||
-      !incidentId ||
-      !responsibleId ||
-      !statusId
-    ) {
-      Alert.alert(
-        "Error",
-        "Por favor completa todos los campos, incluyendo el estado del ticket."
-      );
+    if (!selectedIncident) {
+      Alert.alert("Error", "Por favor selecciona un incidente.");
       return;
     }
 
     setCreating(true);
     try {
       const token = await SecureStore.getItemAsync("userToken");
-      const response = await axios.post(
-        `${API_URL}/ticket`,
-        {
-          description,
-          title,
-          location,
-          urgencyId: parseInt(urgencyId, 10),
-          incidentId: parseInt(incidentId, 10),
-          responsibleId: parseInt(responsibleId, 10),
-          statusId: parseInt(statusId, 10),
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const incidentDetails = incidents.find((i) => String(i.id) === String(selectedIncident));
 
-      if (response.status === 200 || response.status === 201) {
-        const createdTicketId = response.data.id; // Obtenemos el ID del ticket creado
-        Alert.alert("Éxito", "El ticket fue creado correctamente.");
+      if (!incidentDetails) {
+        Alert.alert("Error", "No se pudo encontrar el incidente seleccionado.");
+        return;
+      }
+
+      const ticketUUID = uuid.v4();
+
+      const ticketRequest = {
+        title: incidentDetails.title,
+        description: incidentDetails.description,
+        location: incidentDetails.location,
+        urgencyId: incidentDetails.urgency?.id || 1,
+        incidentId: incidentDetails.id,
+        responsibleId: incidentDetails.reporter?.id || 1,
+        statusId: statuses[0]?.id || 1,
+        identifier: ticketUUID,
+      };
+
+      const requestFileUri = FileSystem.cacheDirectory + "request.json";
+      await FileSystem.writeAsStringAsync(requestFileUri, JSON.stringify(ticketRequest), {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const formData = new FormData();
+      formData.append("request", {
+        uri: requestFileUri,
+        name: "request.json",
+        type: "application/json",
+      });
+
+      const response = await fetch(`${API_URL}/ticket`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (response.ok) {
+        Alert.alert("Éxito", "Ticket creado correctamente.");
         setModalVisible(false);
-        resetForm();
-        fetchTicketDetails(createdTicketId); // Obtenemos los detalles del ticket
+        await fetchAllData();
       } else {
         Alert.alert("Error", "No se pudo crear el ticket.");
       }
+
+      await FileSystem.deleteAsync(requestFileUri);
     } catch (error) {
       console.error("Error al crear el ticket:", error);
       Alert.alert("Error", "Ocurrió un problema al crear el ticket.");
@@ -123,41 +113,14 @@ export default function Tickets() {
     }
   };
 
-  const fetchTicketDetails = async (ticketId) => {
-    try {
-      const token = await SecureStore.getItemAsync("userToken");
-      const response = await axios.get(`${API_URL}/ticket/${ticketId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 200) {
-        setTicketDetails(response.data);
-        setShowTicketModal(true); // Mostramos el modal con los detalles del ticket
-      } else {
-        Alert.alert(
-          "Error",
-          "No se pudieron obtener los detalles del ticket."
-        );
-      }
-    } catch (error) {
-      console.error("Error al obtener los detalles del ticket:", error);
-      Alert.alert(
-        "Error",
-        "Ocurrió un problema al obtener los detalles del ticket."
-      );
-    }
+  const openEditModal = (ticket) => {
+    setSelectedTicket(ticket);
+    setEditModalVisible(true);
   };
 
-  const resetForm = () => {
-    setNewTicket({
-      title: "",
-      description: "",
-      location: "",
-      urgencyId: "",
-      incidentId: "",
-      responsibleId: "",
-      statusId: statuses.length > 0 ? statuses[0].id : "",
-    });
+  const handleCancelEdit = () => {
+    setSelectedTicket(null);
+    setEditModalVisible(false);
   };
 
   return (
@@ -170,180 +133,222 @@ export default function Tickets() {
           <Text style={styles.createButtonText}>Crear Nuevo Ticket</Text>
         </Pressable>
 
-        {/* Modal para crear un nuevo ticket */}
-        <Modal
-          visible={modalVisible}
-          animationType="slide"
-          transparent={true}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalOverlay}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={styles.modalContainer}
+        <View style={styles.historyHeader}>
+          <Text style={styles.historyTitle}>Historial de Tickets</Text>
+          <Pressable style={styles.refreshButton} onPress={fetchAllData}>
+            <Text style={styles.refreshButtonText}>⟳</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.historyWrapper}>
+          <ScrollView style={styles.historyContainer}>
+            {tickets.map((ticket) => (
+              <Pressable key={ticket.id} onPress={() => openEditModal(ticket)}>
+                <View style={styles.ticketItem}>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Título:</Text> {ticket.title}
+                  </Text>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Estado:</Text> {ticket.status?.name || "N/A"}
+                  </Text>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Ubicación:</Text> {ticket.location}
+                  </Text>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Descripción:</Text> {ticket.description}
+                  </Text>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Incidente:</Text> {ticket.incident?.title || "N/A"}
+                  </Text>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Responsable:</Text> {ticket.responsible?.name || "N/A"}
+                  </Text>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Urgencia:</Text> {ticket.urgency?.name || "N/A"}
+                  </Text>
+                  <Text style={styles.ticketText}>
+                    <Text style={styles.ticketLabel}>Creado:</Text> {new Date(ticket.createdAt).toLocaleString()}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Modal para Crear Ticket */}
+        <Modal visible={modalVisible} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Crear Nuevo Ticket</Text>
+              <Picker
+                selectedValue={selectedIncident}
+                onValueChange={(value) => setSelectedIncident(value)}
+                style={styles.picker}
               >
-                <ScrollView contentContainerStyle={styles.scrollViewContent}>
-                  <Text style={styles.modalTitle}>Crear Nuevo Ticket</Text>
-
-                  <TextInput
-                    placeholder="Título"
-                    placeholderTextColor="#AAA"
-                    value={newTicket.title}
-                    onChangeText={(text) =>
-                      setNewTicket({ ...newTicket, title: text })
-                    }
-                    style={styles.input}
-                  />
-                  <TextInput
-                    placeholder="Descripción"
-                    placeholderTextColor="#AAA"
-                    value={newTicket.description}
-                    onChangeText={(text) =>
-                      setNewTicket({ ...newTicket, description: text })
-                    }
-                    multiline
-                    style={[styles.input, styles.textArea]}
-                  />
-                  <TextInput
-                    placeholder="Ubicación"
-                    placeholderTextColor="#AAA"
-                    value={newTicket.location}
-                    onChangeText={(text) =>
-                      setNewTicket({ ...newTicket, location: text })
-                    }
-                    style={styles.input}
-                  />
-                  <TextInput
-                    placeholder="Urgencia (ID)"
-                    placeholderTextColor="#AAA"
-                    value={newTicket.urgencyId}
-                    onChangeText={(text) =>
-                      setNewTicket({ ...newTicket, urgencyId: text })
-                    }
-                    keyboardType="numeric"
-                    style={styles.input}
-                  />
-                  <TextInput
-                    placeholder="ID del incidente"
-                    placeholderTextColor="#AAA"
-                    value={newTicket.incidentId}
-                    onChangeText={(text) =>
-                      setNewTicket({ ...newTicket, incidentId: text })
-                    }
-                    keyboardType="numeric"
-                    style={styles.input}
-                  />
-                  <TextInput
-                    placeholder="ID del responsable"
-                    placeholderTextColor="#AAA"
-                    value={newTicket.responsibleId}
-                    onChangeText={(text) =>
-                      setNewTicket({ ...newTicket, responsibleId: text })
-                    }
-                    keyboardType="numeric"
-                    style={styles.input}
-                  />
-                  <Text style={styles.label}>Estado:</Text>
-                  <Picker
-                    selectedValue={newTicket.statusId}
-                    onValueChange={(value) =>
-                      setNewTicket({ ...newTicket, statusId: value })
-                    }
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Selecciona un estado" value="" />
-                    {statuses.map((status) => (
-                      <Picker.Item
-                        key={status.id}
-                        label={status.name}
-                        value={status.id}
-                      />
-                    ))}
-                  </Picker>
-
-                  <Pressable
-                    style={styles.saveButton}
-                    onPress={handleCreateTicket}
-                    disabled={creating}
-                  >
-                    <Text style={styles.saveButtonText}>
-                      {creating ? "Guardando..." : "Guardar"}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.cancelButton}
-                    onPress={() => setModalVisible(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancelar</Text>
-                  </Pressable>
-                </ScrollView>
-              </KeyboardAvoidingView>
+                <Picker.Item label="Selecciona un incidente" value="" />
+                {incidents.map((incident) => (
+                  <Picker.Item key={incident.id} label={incident.title} value={incident.id} />
+                ))}
+              </Picker>
+              <Pressable
+                style={styles.saveButton}
+                onPress={handleCreateTicket}
+                disabled={creating}
+              >
+                <Text style={styles.saveButtonText}>
+                  {creating ? "Guardando..." : "Crear Ticket"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </Pressable>
             </View>
-          </TouchableWithoutFeedback>
+          </View>
         </Modal>
 
-        {/* Modal para mostrar detalles del ticket */}
-        <Modal
-          visible={showTicketModal}
-          animationType="slide"
-          transparent={true}
-        >
+        {/* Modal para Editar Ticket */}
+        <Modal visible={editModalVisible} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
-            <ScrollView contentContainerStyle={styles.scrollViewContent}>
-              <View style={styles.ticketModalContainer}>
-                <Text style={styles.modalTitle}>Detalles del Ticket</Text>
-                {ticketDetails ? (
-                  <>
-                    <Text style={styles.detailText}>
-                      <Text style={styles.detailLabel}>Título:</Text>{" "}
-                      {ticketDetails.title}
-                    </Text>
-                    <Text style={styles.detailText}>
-                      <Text style={styles.detailLabel}>Descripción:</Text>{" "}
-                      {ticketDetails.description}
-                    </Text>
-                    <Text style={styles.detailText}>
-                      <Text style={styles.detailLabel}>Ubicación:</Text>{" "}
-                      {ticketDetails.location}
-                    </Text>
-                    {/* ... otros detalles ... */}
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Editar Ticket</Text>
+              <Text style={styles.label}>Título</Text>
+              <TextInput
+                style={styles.input}
+                value={selectedTicket?.title || ""}
+                onChangeText={(text) =>
+                  setSelectedTicket({ ...selectedTicket, title: text })
+                }
+              />
+              <Text style={styles.label}>Descripción</Text>
+              <TextInput
+                style={styles.input}
+                multiline
+                value={selectedTicket?.description || ""}
+                onChangeText={(text) =>
+                  setSelectedTicket({ ...selectedTicket, description: text })
+                }
+              />
+              <Text style={styles.label}>Ubicación</Text>
+              <TextInput
+                style={styles.input}
+                value={selectedTicket?.location || ""}
+                onChangeText={(text) =>
+                  setSelectedTicket({ ...selectedTicket, location: text })
+                }
+              />
+              <Text style={styles.label}>Incidente</Text>
+              <Picker
+                selectedValue={selectedTicket?.incidentId || ""}
+                onValueChange={(value) =>
+                  setSelectedTicket({ ...selectedTicket, incidentId: value })
+                }
+                style={styles.picker}
+                itemStyle={{ height: 70, color: "#FFF" }}
+              >
+                {incidents.map((incident) => (
+                  <Picker.Item key={incident.id} label={incident.title} value={incident.id} />
+                ))}
+              </Picker>
+              <Text style={styles.label}>Estado</Text>
+              <Picker
+                selectedValue={selectedTicket?.statusId || ""}
+                onValueChange={(value) =>
+                  setSelectedTicket({ ...selectedTicket, statusId: value })
+                }
+                style={styles.picker}
+                itemStyle={{ height: 70, color: "#FFF" }}
+              >
+                {statuses.map((status) => (
+                  <Picker.Item key={status.id} label={status.name} value={status.id} />
+                ))}
+              </Picker>
+              <Pressable
+                style={styles.saveButton}
+                onPress={async () => {
+                  try {
+                    const token = await SecureStore.getItemAsync("userToken");
+                    const response = await fetch(`${API_URL}/ticket/${selectedTicket.id}`, {
+                      method: "PUT",
+                      headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        title: selectedTicket.title,
+                        description: selectedTicket.description,
+                        location: selectedTicket.location,
+                        urgencyId: selectedTicket.urgencyId,
+                        incidentId: selectedTicket.incidentId,
+                        responsibleId: selectedTicket.responsibleId,
+                        statusId: selectedTicket.statusId,
+                      }),
+                    });
 
-                    {/* Mostrar historial del ticket */}
-                    <Text style={styles.historyTitle}>Historial:</Text>
-                    {ticketDetails.history && ticketDetails.history.length > 0 ? (
-                      ticketDetails.history.map((event, index) => (
-                        <View key={index} style={styles.historyItem}>
-                          <Text style={styles.historyDate}>
-                            <Text style={styles.detailLabel}>Fecha:</Text>{" "}
-                            {new Date(event.date).toLocaleString()}
-                          </Text>
-                          <Text style={styles.historyStatus}>
-                            <Text style={styles.detailLabel}>Estado:</Text>{" "}
-                            {event.status}
-                          </Text>
-                          <Text style={styles.historyComments}>
-                            <Text style={styles.detailLabel}>Comentarios:</Text>{" "}
-                            {event.comments}
-                          </Text>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.detailText}>
-                        No hay historial disponible.
-                      </Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={styles.detailText}>Cargando detalles...</Text>
-                )}
-                <Pressable
-                  style={styles.closeButton}
-                  onPress={() => setShowTicketModal(false)}
-                >
-                  <Text style={styles.closeButtonText}>Cerrar</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
+                    if (response.ok) {
+                      Alert.alert("Éxito", "El ticket ha sido actualizado.");
+                      setEditModalVisible(false);
+                      fetchAllData();
+                    } else {
+                      Alert.alert("Error", "No se pudo actualizar el ticket.");
+                    }
+                  } catch (error) {
+                    console.error("Error al actualizar el ticket:", error);
+                    Alert.alert("Error", "Hubo un problema al actualizar el ticket.");
+                  }
+                }}
+              >
+                <Text style={styles.saveButtonText}>Guardar Cambios</Text>
+              </Pressable>
+              <Pressable
+                style={styles.deleteButton}
+                onPress={() => {
+                  Alert.alert(
+                    "Confirmación",
+                    "¿Estás seguro de que deseas eliminar este ticket?",
+                    [
+                      {
+                        text: "Cancelar",
+                        style: "cancel",
+                      },
+                      {
+                        text: "Eliminar",
+                        onPress: async () => {
+                          try {
+                            const token = await SecureStore.getItemAsync("userToken");
+                            const response = await fetch(
+                              `${API_URL}/ticket/${selectedTicket.id}`,
+                              {
+                                method: "DELETE",
+                                headers: { Authorization: `Bearer ${token}` },
+                              }
+                            );
+
+                            if (response.ok) {
+                              Alert.alert("Éxito", "El ticket ha sido eliminado.");
+                              setEditModalVisible(false);
+                              fetchAllData();
+                            } else {
+                              Alert.alert("Error", "No se pudo eliminar el ticket.");
+                            }
+                          } catch (error) {
+                            console.error("Error al eliminar el ticket:", error);
+                            Alert.alert("Error", "Hubo un problema al eliminar el ticket.");
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Text style={styles.deleteButtonText}>Eliminar Ticket</Text>
+              </Pressable>
+              <Pressable style={styles.cancelButton} onPress={handleCancelEdit}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </Pressable>
+            </View>
           </View>
         </Modal>
       </View>
@@ -358,129 +363,66 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     alignItems: "center",
-    marginBottom: 20,
   },
-  createButtonText: {
+  createButtonText: { color: "#000", fontWeight: "bold" },
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  historyTitle: {
+    color: "#FFD700",
+    fontSize: 18,
+    flex: 1,
+    marginRight: 10,
+  },
+  refreshButton: {
+    backgroundColor: "#FFD700",
+    borderRadius: 20,
+    padding: 8,
+  },
+  refreshButtonText: {
     color: "#000",
     fontWeight: "bold",
+    fontSize: 16,
   },
+  historyWrapper: { flex: 1, marginTop: 10 },
+  historyContainer: { flex: 1 },
+  ticketItem: {
+    backgroundColor: "#2a2a2a",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  ticketText: { color: "#FFF" },
+  ticketLabel: { fontWeight: "bold", color: "#FFD700" },
   modalOverlay: {
     flex: 1,
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.8)",
   },
   modalContainer: {
-    flex: 1,
-    backgroundColor: "#2a2a2a",
-    borderRadius: 10,
+    backgroundColor: "#000",
     marginHorizontal: 20,
-    padding: 10,
-    elevation: 5,
-  },
-  scrollViewContent: {
+    borderRadius: 12,
     padding: 20,
+    width: "85%",
+    alignSelf: "center",
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 20,
-    color: "#FFF",
-  },
+  modalTitle: { fontSize: 23, color: "#FFD700", textAlign: "center", marginBottom: 20 , fontWeight: "bold"},
+  label: { color: "#FFF", marginBottom: 10 },
+  picker: { backgroundColor: "#444", color: "#FF" ,height: 70, marginBottom: 10 , borderRadius: 8, fontSize: 16},
   input: {
-    backgroundColor: "#333",
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-    fontSize: 16,
-    color: "#FFF",
-  },
-  textArea: {
-    height: 100,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginVertical: 10,
-  },
-  picker: {
-    height: 50,
-    backgroundColor: "#333",
-    color: "#FFF",
-    borderRadius: 8,
-    marginBottom: 20,
-  },
-  saveButton: {
-    backgroundColor: "#FFD700",
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  saveButtonText: {
-    color: "#000",
-    fontWeight: "bold",
-  },
-  cancelButton: {
-    backgroundColor: "#888",
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  cancelButtonText: {
-    color: "#FFF",
-    fontWeight: "bold",
-  },
-  ticketModalContainer: {
-    backgroundColor: "#2a2a2a",
-    borderRadius: 10,
-    padding: 20,
-    elevation: 5,
-  },
-  detailText: {
-    fontSize: 16,
-    color: "#FFF",
-    marginBottom: 10,
-  },
-  detailLabel: {
-    fontWeight: "bold",
-  },
-  closeButton: {
-    backgroundColor: "#FFD700",
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  closeButtonText: {
-    color: "#000",
-    fontWeight: "bold",
-  },
-  historyTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFF",
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  historyItem: {
-    backgroundColor: "#333",
+    backgroundColor: "#FFF",
     padding: 10,
     borderRadius: 8,
     marginBottom: 10,
   },
-  historyDate: {
-    fontSize: 14,
-    color: "#FFF",
-  },
-  historyStatus: {
-    fontSize: 14,
-    color: "#FFF",
-  },
-  historyComments: {
-    fontSize: 14,
-    color: "#FFF",
-  },
+  saveButton: { backgroundColor: "#FFD700", padding: 10, borderRadius: 8, marginTop: 10 },
+  saveButtonText: { color: "#FFF", textAlign: "center" },
+  deleteButton: { backgroundColor: "#FF5733", padding: 10, borderRadius: 8, marginTop: 10 },
+  deleteButtonText: { color: "#FFF", textAlign: "center" },
+  cancelButton: { backgroundColor: "#888", padding: 10, borderRadius: 8, marginTop: 10 },
+  cancelButtonText: { color: "#FFF", textAlign: "center" },
 });

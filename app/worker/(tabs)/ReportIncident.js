@@ -151,7 +151,7 @@ export default function ReportIncident() {
 
       // Enviar la solicitud al backend usando fetch
       const response = await fetch(
-        "http://192.168.1.150:8089/incident/register",
+        "http://192.168.1.144:8089/incident/register",
         {
           method: "POST",
           headers: {
