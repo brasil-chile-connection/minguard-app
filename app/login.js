@@ -15,7 +15,6 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Logo } from "../components/Logo";
-import { CircleInfoIcon } from "../components/Icons"; 
 
 const StyledPressable = styled(Pressable);
 
@@ -91,9 +90,6 @@ export default function Login() {
         <Pressable>
           <Logo />
         </Pressable>
-        <Pressable>
-          <CircleInfoIcon />
-        </Pressable>
       </View>
 
       {/* Formulario de inicio de sesión */}
@@ -131,9 +127,6 @@ export default function Login() {
             <Text className="text-black font-bold">Ingresar</Text>
           </StyledPressable>
 
-          <Link href="/recoverpassword" className="mt-4">
-            <Text className="text-white/70">¿Olvidaste tu contraseña?</Text>
-          </Link>
         </KeyboardAvoidingView>
       </Screen>
     </SafeAreaView>

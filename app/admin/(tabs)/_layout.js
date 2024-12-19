@@ -98,13 +98,6 @@ export default function AdminLayout() {
       ),
     },
     {
-      name: "about",
-      title: "Acerca",
-      icon: ({ color, size }) => (
-        <MaterialIcons name="info" color={color} size={size} />
-      ),
-    },
-    {
       name: "HistorialIncidente",
       title: "Historial",
       icon: ({ color, size }) => (
@@ -218,14 +211,14 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   logoutButton: {
-    backgroundColor: "red",
+    backgroundColor: "#FFD700",
     padding: 12,
     borderRadius: 8,
     marginTop: 20,
     alignItems: "center",
   },
   logoutButtonText: {
-    color: "white",
+    color: "black",
     fontWeight: "bold",
     fontSize: 16,
   },
