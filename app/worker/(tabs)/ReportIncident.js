@@ -151,7 +151,7 @@ export default function ReportIncident() {
 
       // Enviar la solicitud al backend usando fetch
       const response = await fetch(
-        "http://192.168.1.144:8089/incident/register",
+        "http://ec2-44-221-160-148.compute-1.amazonaws.com:8089/incident/register",
         {
           method: "POST",
           headers: {
@@ -280,7 +280,7 @@ export default function ReportIncident() {
         <Pressable
           onPress={handleReport}
           style={{
-            backgroundColor: "yellow",
+            backgroundColor: "#FFD700",
             padding: 10,
             borderRadius: 5,
             alignItems: "center",

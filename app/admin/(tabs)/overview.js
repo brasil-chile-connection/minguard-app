@@ -19,8 +19,7 @@ export default function OverviewAdmin() {
   const [incidentsWeek, setIncidentsWeek] = useState([]);
   const [loading, setLoading] = useState(true);
   const [adminName, setAdminName] = useState("");
-  const [refreshing, setRefreshing] = useState(false); // Estado para controlar el refresco
-
+  const [refreshing, setRefreshing] = useState(false); 
   const fetchIncidents = async () => {
     try {
       const token = await SecureStore.getItemAsync("userToken");
@@ -30,7 +29,7 @@ export default function OverviewAdmin() {
         return;
       }
 
-      const API_URL = "http://192.168.1.144:8089";
+      const API_URL = "http://ec2-44-221-160-148.compute-1.amazonaws.com:8089";
 
       // Obtener información del administrador
       const userResponse = await axios.get(`${API_URL}/user/me`, {
@@ -89,7 +88,7 @@ export default function OverviewAdmin() {
     fetchIncidents();
 
     // Configurar el polling para actualizar los incidentes cada 10 segundos
-    const intervalId = setInterval(fetchIncidents, 10000);
+    const intervalId = setInterval(fetchIncidents, 30000);
 
     // Limpiar el intervalo cuando el componente se desmonte
     return () => clearInterval(intervalId);

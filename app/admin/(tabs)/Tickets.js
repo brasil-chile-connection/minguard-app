@@ -14,9 +14,10 @@ import * as SecureStore from "expo-secure-store";
 import * as FileSystem from "expo-file-system";
 import uuid from "react-native-uuid";
 import { Screen } from "../../../components/Screen";
+import * as Clipboard from "expo-clipboard";
 
 export default function Tickets() {
-  const API_URL = "http://192.168.1.144:8089";
+  const API_URL = "http://ec2-44-221-160-148.compute-1.amazonaws.com:8089";
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [incidents, setIncidents] = useState([]);
@@ -65,6 +66,7 @@ export default function Tickets() {
         return;
       }
 
+      // Generar un UUID en el frontend (opcional)
       const ticketUUID = uuid.v4();
 
       const ticketRequest = {
@@ -97,9 +99,42 @@ export default function Tickets() {
       });
 
       if (response.ok) {
-        Alert.alert("Éxito", "Ticket creado correctamente.");
-        setModalVisible(false);
-        await fetchAllData();
+        const data = await response.json();
+        const createdTicketId = data.id; // Aquí solo tenemos el id
+
+        // Hacer segunda llamada para obtener ticket completo
+        const ticketResponse = await fetch(`${API_URL}/ticket/${createdTicketId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (ticketResponse.ok) {
+          const ticketData = await ticketResponse.json();
+          const backendUUID = ticketData.identifier;
+
+          setModalVisible(false);
+          await fetchAllData();
+
+          Alert.alert(
+            "Éxito",
+            `Ticket creado correctamente.\nIdentificador (backend): ${backendUUID}`,
+            [
+              {
+                text: "Copiar URL",
+                onPress: () => {
+                  const url = `https://minguard.netlify.app/third-party-access/tickets/${backendUUID}`;
+                  Clipboard.setString(url);
+                  Alert.alert("Copiado", "El enlace se ha copiado al portapapeles.");
+                }
+              },
+              { text: "OK" }
+            ]
+          );
+        } else {
+          Alert.alert(
+            "Error",
+            "Se creó el ticket pero no se pudo obtener el identificador desde el backend."
+          );
+        }
       } else {
         Alert.alert("Error", "No se pudo crear el ticket.");
       }
@@ -136,7 +171,7 @@ export default function Tickets() {
         <View style={styles.historyHeader}>
           <Text style={styles.historyTitle}>Historial de Tickets</Text>
           <Pressable style={styles.refreshButton} onPress={fetchAllData}>
-            <Text style={styles.refreshButtonText}>⟳</Text>
+            <Text style={styles.refreshButtonText}> Actualizar </Text>
           </Pressable>
         </View>
 
@@ -184,6 +219,7 @@ export default function Tickets() {
                 selectedValue={selectedIncident}
                 onValueChange={(value) => setSelectedIncident(value)}
                 style={styles.picker}
+                itemStyle={{ height: 80, color: "#FFF" }}
               >
                 <Picker.Item label="Selecciona un incidente" value="" />
                 {incidents.map((incident) => (
@@ -410,9 +446,22 @@ const styles = StyleSheet.create({
     width: "85%",
     alignSelf: "center",
   },
-  modalTitle: { fontSize: 23, color: "#FFD700", textAlign: "center", marginBottom: 20 , fontWeight: "bold"},
+  modalTitle: {
+    fontSize: 23,
+    color: "#FFD700",
+    textAlign: "center",
+    marginBottom: 20,
+    fontWeight: "bold"
+  },
   label: { color: "#FFF", marginBottom: 10 },
-  picker: { backgroundColor: "#444", color: "#FF" ,height: 70, marginBottom: 10 , borderRadius: 8, fontSize: 16},
+  picker: {
+    backgroundColor: "#444",
+    color: "#FFF",
+    height: 70,
+    marginBottom: 10,
+    borderRadius: 8,
+    fontSize: 16,
+  },
   input: {
     backgroundColor: "#FFF",
     padding: 10,

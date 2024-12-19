@@ -17,7 +17,7 @@ export default function HistorialIncidente() {
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = "http://192.168.1.144:8089";
+  const API_URL = "http://ec2-44-221-160-148.compute-1.amazonaws.com:8089";
 
   useEffect(() => {
     fetchIncidents();
